@@ -1,4 +1,4 @@
-.PHONY: up down nuke ps logs psql
+.PHONY: up down nuke ps logs psql migrate migrate-status
 
 up:
 	docker compose up -d --wait
@@ -17,3 +17,9 @@ logs:
 
 psql:
 	docker compose exec postgres sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
+
+migrate:
+	./scripts/migrate.sh
+
+migrate-status:
+	docker compose exec postgres sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -c "SELECT version, applied_at FROM schema_migrations ORDER BY version;"'
