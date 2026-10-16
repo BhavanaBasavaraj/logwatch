@@ -1,4 +1,4 @@
-.PHONY: up down nuke ps logs psql migrate migrate-status
+.PHONY: up down nuke ps logs psql migrate migrate-status venv seed purge-synthetic
 
 up:
 	docker compose up -d --wait
@@ -23,3 +23,14 @@ migrate:
 
 migrate-status:
 	docker compose exec postgres sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -c "SELECT version, applied_at FROM schema_migrations ORDER BY version;"'
+
+venv:
+	python3 -m venv .venv
+	.venv/bin/pip install --upgrade pip
+	.venv/bin/pip install -r requirements.txt
+
+seed:
+	.venv/bin/python scripts/seed.py $(ARGS)
+
+purge-synthetic:
+	.venv/bin/python scripts/seed.py --purge-only
