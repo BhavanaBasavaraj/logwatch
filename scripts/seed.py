@@ -326,6 +326,9 @@ def main():
     ap.add_argument("--count", type=int, default=5000, help="traces to generate")
     ap.add_argument("--days", type=int, default=7, help="spread over the last N days")
     ap.add_argument("--seed", type=int, default=42, help="RNG seed for reproducibility")
+    ap.add_argument("--anchor", default=None,
+                    help="ISO timestamp to generate relative to; "
+                         "pin it for byte-identical runs (e.g. 2026-10-16T00:00:00Z)")
     ap.add_argument("--purge", action="store_true", help="delete synthetic rows first")
     ap.add_argument("--purge-only", action="store_true", help="delete and exit")
     args = ap.parse_args()
@@ -337,7 +340,10 @@ def main():
     )
 
     rng = random.Random(args.seed)
-    now = datetime.now(timezone.utc)
+    if args.anchor:
+        now = datetime.fromisoformat(args.anchor.replace('Z', '+00:00'))
+    else:
+        now = datetime.now(timezone.utc)
 
     with psycopg.connect(dsn) as conn:
         if args.purge or args.purge_only:
@@ -368,7 +374,8 @@ def main():
         conn.commit()
 
     print(f"inserted {len(events)} traces, {len(calls)} llm_calls, "
-          f"{len(evals)} evaluations (seed={args.seed}, days={args.days})")
+          f"{len(evals)} evaluations (seed={args.seed}, days={args.days}, "
+          f"anchor={now.isoformat()})")
 
 
 if __name__ == "__main__":
