@@ -4,7 +4,7 @@
   "tags": ["logwatch"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "",
   "time": { "from": "now-7d", "to": "now" },
   "panels": [
@@ -42,10 +42,7 @@
           "rawSql": "SELECT round(100.0 * count(*) FILTER (WHERE cache_hit) / nullif(count(*), 0), 1) AS value FROM query_events WHERE $__timeFilter(started_at)"
         }
       ],
-      "fieldConfig": {
-        "defaults": { "unit": "percent", "decimals": 1 },
-        "overrides": []
-      },
+      "fieldConfig": { "defaults": { "unit": "percent", "decimals": 1 }, "overrides": [] },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "value",
@@ -66,10 +63,7 @@
           "rawSql": "SELECT round(100.0 * count(*) FILTER (WHERE status = 'error') / nullif(count(*), 0), 2) AS value FROM query_events WHERE $__timeFilter(started_at)"
         }
       ],
-      "fieldConfig": {
-        "defaults": { "unit": "percent", "decimals": 2 },
-        "overrides": []
-      },
+      "fieldConfig": { "defaults": { "unit": "percent", "decimals": 2 }, "overrides": [] },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "value",
@@ -90,14 +84,149 @@
           "rawSql": "SELECT coalesce(sum(cost_usd), 0) AS value FROM llm_calls WHERE $__timeFilter(started_at)"
         }
       ],
-      "fieldConfig": {
-        "defaults": { "unit": "currencyUSD", "decimals": 4 },
-        "overrides": []
-      },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 4 }, "overrides": [] },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "value",
         "colorMode": "none"
+      }
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Request rate",
+      "description": "Requests per minute, bucketed to the panel width.",
+      "id": 10,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "logwatch-postgres" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroup(started_at, $__interval) AS time, count(*) / ($__interval_ms / 60000.0) AS \"requests/min\" FROM query_events WHERE $__timeFilter(started_at) GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      }
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Latency percentiles (excluding cache hits)",
+      "description": "p50 / p95 / p99 of end-to-end request duration. Cache hits excluded so model latency is not diluted.",
+      "id": 11,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "logwatch-postgres" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroup(started_at, $__interval) AS time, percentile_cont(0.50) WITHIN GROUP (ORDER BY duration_ms) AS p50, percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms) AS p95, percentile_cont(0.99) WITHIN GROUP (ORDER BY duration_ms) AS p99 FROM query_events WHERE $__timeFilter(started_at) AND NOT cache_hit GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Requests by resolver",
+      "description": "Who actually answered: cache, Gemini, NIM, or nothing (error). Stacked, so the top line is total traffic.",
+      "id": 12,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "logwatch-postgres" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroup(started_at, $__interval) AS time, coalesce(provider_final, 'unresolved') AS resolver, count(*) AS requests FROM query_events WHERE $__timeFilter(started_at) GROUP BY 1, 2 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 25,
+            "spanNulls": false,
+            "showPoints": "never",
+            "stacking": { "mode": "normal", "group": "A" }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Fallback and retry rate",
+      "description": "Share of model-backed requests that needed more than one attempt, and the share that NIM had to answer after Gemini failed. Rising values mean the primary provider is degrading while the system silently compensates.",
+      "id": 13,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "logwatch-postgres" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroup(started_at, $__interval) AS time, 100.0 * count(*) FILTER (WHERE attempt_count > 1) / nullif(count(*), 0) AS \"retried %\", 100.0 * count(*) FILTER (WHERE provider_final = 'nvidia.nim') / nullif(count(*), 0) AS \"fell back to NIM %\" FROM query_events WHERE $__timeFilter(started_at) AND NOT cache_hit GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
       }
     }
   ]
