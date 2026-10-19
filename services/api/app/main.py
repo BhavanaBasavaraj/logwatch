@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from .db import lifespan
+from .routers import stats, traces
 
 logging.basicConfig(level=logging.INFO)
 
@@ -17,6 +18,9 @@ app = FastAPI(
     ),
     lifespan=lifespan,
 )
+
+app.include_router(stats.router)
+app.include_router(traces.router)
 
 
 @app.get("/health", tags=["health"], summary="Liveness probe")

@@ -1,4 +1,4 @@
-.PHONY: up down nuke ps logs psql migrate migrate-status venv seed purge-synthetic
+.PHONY: up down nuke ps logs psql migrate migrate-status venv seed purge-synthetic api-rebuild api-logs
 
 up:
 	docker compose up -d --wait
@@ -34,3 +34,9 @@ seed:
 
 purge-synthetic:
 	.venv/bin/python scripts/seed.py --purge-only
+
+api-rebuild:
+	docker compose up -d --build api
+
+api-logs:
+	docker compose logs -f api
